@@ -17,10 +17,32 @@
     .btn-clock-in { background-color: #06C755; color: white; }
     .btn-clock-out { background-color: #35495e; color: white; }
     .btn:disabled { background-color: #ccc; cursor: not-allowed; }
-    .info-box { background: #f0f4f8; border-radius: 8px; padding: 12px; font-size: 0.85rem; color: #444; text-align: left; word-break: break-all; line-height: 1.5; }
-    .loading { display: none; color: #06C755; font-weight: bold; margin-bottom: 12px; }
-    .status-success { color: #06C755; font-weight: bold; }
-    .status-error { color: #e03131; font-weight: bold; }
+    .info-box { background: #f0f4f8; border-radius: 8px; padding: 14px; font-size: 0.9rem; color: #444; text-align: left; word-break: break-all; line-height: 1.6; }
+    .loading { display: none; color: #06C755; font-weight: bold; margin-bottom: 12px; font-size: 0.95rem; }
+    
+    /* 打卡結果訊息強化 */
+    .status-success { 
+      color: #0d6efd; 
+      font-weight: bold; 
+      font-size: 1.05rem;
+      background-color: #e7f1ff; 
+      padding: 8px 10px; 
+      border-radius: 6px; 
+      display: inline-block; 
+      margin-top: 4px;
+      width: 100%;
+    }
+    .status-error { 
+      color: #d90429; 
+      font-weight: bold; 
+      font-size: 1rem;
+      background-color: #ffe5e5; 
+      padding: 8px 10px; 
+      border-radius: 6px; 
+      display: inline-block; 
+      margin-top: 4px;
+      width: 100%;
+    }
   </style>
 </head>
 <body>
@@ -30,7 +52,7 @@
     <div id="userName" class="user-name">載入使用者資訊中...</div>
     <div id="userId" class="status-text">LINE ID: --</div>
 
-    <div id="loadingText" class="loading">GPS 定位與處理中...</div>
+    <div id="loadingText" class="loading">⏳ GPS 定位與資料處理中...</div>
 
     <div class="btn-group">
       <button id="btnClockIn" class="btn btn-clock-in" onclick="handleClock('CLOCK_IN')" disabled>上班打卡</button>
@@ -38,7 +60,8 @@
     </div>
 
     <div class="info-box">
-      <strong>當前狀態：</strong><span id="logMsg">等待初始化...</span><br>
+      <strong>當前狀態：</strong><br>
+      <span id="logMsg">等待初始化...</span><br><br>
       <strong>GPS 座標：</strong><span id="geoCoords">未取得</span>
     </div>
   </div>
@@ -46,6 +69,9 @@
   <script>
     const MY_LIFF_ID = "2011544779-xcU8XKhd";
     const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbz83EWMrOYOP5knxpwV-V_eCOwsSAScT1tGplu7aau6e7kovs6AYPe9E6RqD3WCV1UT/exec";
+
+    // 成功打卡後停留時間 (單位：毫秒，5000 代表 5 秒)
+    const AUTO_CLOSE_DELAY = 5000;
 
     let currentUserProfile = null;
 
@@ -103,7 +129,7 @@
           },
           (error) => {
             setLoading(false);
-            updateLog("定位失敗，請確認已開啟手機 GPS 與權限。", false);
+            updateLog("定位失敗，請確認已開啟手機 GPS 與定位權限。", false);
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
@@ -127,9 +153,13 @@
         setLoading(false);
 
         if (result.success) {
-          updateLog(`✅ ${result.message}`, true);
+          // 顯示包含倒數提示的成功訊息
+          updateLog(`✅ ${result.message}<br><small>（視窗將於 5 秒後自動關閉）</small>`, true);
+          
           if (liff.isInClient()) {
-            setTimeout(() => { liff.closeWindow(); }, 1800);
+            setTimeout(() => { 
+              liff.closeWindow(); 
+            }, AUTO_CLOSE_DELAY);
           }
         } else {
           updateLog(`❌ ${result.message}`, false);
@@ -143,7 +173,7 @@
 
     function updateLog(msg, isSuccess = null) {
       const logElement = document.getElementById("logMsg");
-      logElement.innerText = msg;
+      logElement.innerHTML = msg;
       logElement.className = "";
       if (isSuccess === true) logElement.classList.add("status-success");
       if (isSuccess === false) logElement.classList.add("status-error");
