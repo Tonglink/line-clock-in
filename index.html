@@ -50,7 +50,7 @@
   <script>
     const MY_LIFF_ID = "2011544779-xcU8XKhd";
     
-    // ⚠️ 請務必替換為 GAS 正確的部署網址 (格式必須為 https://script.google.com/macros/s/.../exec)
+    // GAS 部署後產生的 API 網址
     const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbz83EWMrOYOP5knxpwV-V_eCOwsSAScT1tGplu7aau6e7kovs6AYPe9E6RqD3WCV1UT/exec";
 
     let currentUserProfile = null;
@@ -145,21 +145,27 @@
       }
     }
 
-    // 4. 發送資料至後端 API
+    // 4. 發送資料至後端 API (相容 Safari / iOS 的 JSON 處理)
     function sendClockDataToBackend(data) {
       updateLog("打卡資料傳送中...");
 
-      // 改用 text/plain 避免跨網域 CORS Preflight 限制
       fetch(BACKEND_API_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(data)
       })
-      .then(response => response.json())
-      .then(result => {
+      .then(response => response.text())
+      .then(text => {
+        let result;
+        try {
+          result = JSON.parse(text);
+        } catch(e) {
+          throw new Error("伺服器回應格式不符合 JSON: " + text);
+        }
+
         setLoading(false);
         if (result.success || result.status === "success") {
-          updateLog("打卡成功！");
+          updateLog(result.message || "打卡成功！");
 
           if (liff.isInClient()) {
             const actionText = data.type === 'CLOCK_IN' ? '上班' : '下班';
@@ -176,7 +182,7 @@
             });
           }
         } else {
-          updateLog("打卡失敗：" + (result.message || "伺服器拒絕"));
+          updateLog(result.message || "打卡失敗");
         }
       })
       .catch(err => {
