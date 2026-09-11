@@ -4,11 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LINE 移動打卡系統</title>
-  <!-- 引入 LINE LIFF SDK -->
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  
   <style>
-    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background-color: #f5f6f8; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
     .card { background: #ffffff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; padding: 24px; text-align: center; }
     .profile-img { width: 70px; height: 70px; border-radius: 50%; margin-bottom: 12px; object-fit: cover; border: 2px solid #06C755; }
@@ -28,21 +26,17 @@
 <body>
 
   <div class="card">
-    <!-- 使用者資訊區塊 -->
     <img id="userImg" class="profile-img" src="https://via.placeholder.com/70" alt="Avatar">
     <div id="userName" class="user-name">載入使用者資訊中...</div>
     <div id="userId" class="status-text">LINE ID: --</div>
 
-    <!-- 狀態與提示訊息 -->
-    <div id="loadingText" class="loading">GPS 定位與資料處理中...</div>
+    <div id="loadingText" class="loading">GPS 定位與處理中...</div>
 
-    <!-- 打卡按鈕區 -->
     <div class="btn-group">
       <button id="btnClockIn" class="btn btn-clock-in" onclick="handleClock('CLOCK_IN')" disabled>上班打卡</button>
       <button id="btnClockOut" class="btn btn-clock-out" onclick="handleClock('CLOCK_OUT')" disabled>下班打卡</button>
     </div>
 
-    <!-- 資訊紀錄顯示區 -->
     <div class="info-box">
       <strong>當前狀態：</strong><span id="logMsg">等待初始化...</span><br>
       <strong>GPS 座標：</strong><span id="geoCoords">未取得</span>
@@ -51,13 +45,10 @@
 
   <script>
     const MY_LIFF_ID = "2011544779-xcU8XKhd";
-    
-    // ⚠️ 請確認與 GAS 最新部署網址一致 (必須為 .../exec 結尾)
     const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbz83EWMrOYOP5knxpwV-V_eCOwsSAScT1tGplu7aau6e7kovs6AYPe9E6RqD3WCV1UT/exec";
 
     let currentUserProfile = null;
 
-    // 1. 初始化 LIFF
     document.addEventListener("DOMContentLoaded", function() {
       liff.init({ liffId: MY_LIFF_ID })
         .then(() => {
@@ -72,7 +63,6 @@
         });
     });
 
-    // 2. 取得 LINE User Profile
     function getUserProfile() {
       liff.getProfile()
         .then((profile) => {
@@ -82,7 +72,6 @@
           if (profile.pictureUrl) {
             document.getElementById("userImg").src = profile.pictureUrl;
           }
-          
           document.getElementById("btnClockIn").disabled = false;
           document.getElementById("btnClockOut").disabled = false;
           updateLog("初始化完成，請選擇打卡項目。");
@@ -92,13 +81,8 @@
         });
     }
 
-    // 3. 處理打卡邏輯
     function handleClock(type) {
-      if (!currentUserProfile) {
-        alert("無法獲取使用者資訊，請重新整理頁面。");
-        return;
-      }
-
+      if (!currentUserProfile) return;
       setLoading(true);
       updateLog("正在取得 GPS 定位資訊...");
 
@@ -107,47 +91,28 @@
           (position) => {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
-            
             document.getElementById("geoCoords").innerText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
             
-            const payload = {
+            sendClockDataToBackend({
               userId: currentUserProfile.userId,
               displayName: currentUserProfile.displayName,
               type: type,
               latitude: lat,
-              longitude: lng,
-              timestamp: new Date().toISOString()
-            };
-
-            sendClockDataToBackend(payload);
+              longitude: lng
+            });
           },
           (error) => {
             setLoading(false);
-            let errorMsg = "定位失敗: ";
-            switch(error.code) {
-              case error.PERMISSION_DENIED:
-                errorMsg += "請允許定位權限以進行打卡。";
-                break;
-              case error.POSITION_UNAVAILABLE:
-                errorMsg += "無法取得位置資訊。";
-                break;
-              case error.TIMEOUT:
-                errorMsg += "定位請求超時。";
-                break;
-              default:
-                errorMsg += "未知錯誤。";
-            }
-            updateLog(errorMsg, false);
+            updateLog("定位失敗，請確認已開啟手機 GPS 與權限。", false);
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
       } else {
         setLoading(false);
-        updateLog("您的裝置不支援 GPS 位置獲取功能。", false);
+        updateLog("裝置不支援定位功能。", false);
       }
     }
 
-    // 4. 發送資料至後端 API
     function sendClockDataToBackend(data) {
       updateLog("打卡資料傳送中...");
 
@@ -158,31 +123,13 @@
       })
       .then(response => response.text())
       .then(text => {
-        let result;
-        try {
-          result = JSON.parse(text);
-        } catch(e) {
-          throw new Error("伺服器回應格式異常");
-        }
-
+        const result = JSON.parse(text);
         setLoading(false);
 
         if (result.success) {
-          const actionText = data.type === 'CLOCK_IN' ? '上班' : '下班';
-          updateLog(`✅ ${actionText}打卡成功！(距離公司 ${result.distance} 公尺)`, true);
-
+          updateLog(`✅ ${result.message}`, true);
           if (liff.isInClient()) {
-            liff.sendMessages([
-              {
-                type: 'text',
-                text: `[打卡通知] ${data.displayName} 已於 ${new Date().toLocaleTimeString('zh-TW', {hour12: false})} 完成${actionText}打卡！`
-              }
-            ]).then(() => {
-              setTimeout(() => { liff.closeWindow(); }, 1500);
-            }).catch(err => {
-              console.error("發送訊息失敗", err);
-              setTimeout(() => { liff.closeWindow(); }, 1500);
-            });
+            setTimeout(() => { liff.closeWindow(); }, 1800);
           }
         } else {
           updateLog(`❌ ${result.message}`, false);
@@ -190,7 +137,7 @@
       })
       .catch(err => {
         setLoading(false);
-        updateLog("連線至後端失敗: " + err.message, false);
+        updateLog("連線失敗: " + err.message, false);
       });
     }
 
@@ -198,11 +145,8 @@
       const logElement = document.getElementById("logMsg");
       logElement.innerText = msg;
       logElement.className = "";
-      if (isSuccess === true) {
-        logElement.classList.add("status-success");
-      } else if (isSuccess === false) {
-        logElement.classList.add("status-error");
-      }
+      if (isSuccess === true) logElement.classList.add("status-success");
+      if (isSuccess === false) logElement.classList.add("status-error");
     }
 
     function setLoading(isLoading) {
@@ -211,6 +155,5 @@
       document.getElementById("btnClockOut").disabled = isLoading;
     }
   </script>
-
 </body>
 </html>
