@@ -8,19 +8,21 @@
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   
   <style>
-    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
     body { background-color: #f5f6f8; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
     .card { background: #ffffff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; padding: 24px; text-align: center; }
     .profile-img { width: 70px; height: 70px; border-radius: 50%; margin-bottom: 12px; object-fit: cover; border: 2px solid #06C755; }
     .user-name { font-size: 1.1rem; font-weight: bold; color: #333; margin-bottom: 4px; }
-    .status-text { font-size: 0.85rem; color: #666; margin-bottom: 24px; }
+    .status-text { font-size: 0.85rem; color: #666; margin-bottom: 20px; }
     .btn-group { display: flex; gap: 12px; margin-bottom: 16px; }
     .btn { flex: 1; padding: 14px 0; border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
     .btn-clock-in { background-color: #06C755; color: white; }
     .btn-clock-out { background-color: #35495e; color: white; }
     .btn:disabled { background-color: #ccc; cursor: not-allowed; }
-    .info-box { background: #f0f4f8; border-radius: 8px; padding: 12px; font-size: 0.85rem; color: #444; text-align: left; word-break: break-all; }
+    .info-box { background: #f0f4f8; border-radius: 8px; padding: 12px; font-size: 0.85rem; color: #444; text-align: left; word-break: break-all; line-height: 1.5; }
     .loading { display: none; color: #06C755; font-weight: bold; margin-bottom: 12px; }
+    .status-success { color: #06C755; font-weight: bold; }
+    .status-error { color: #e03131; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -50,7 +52,7 @@
   <script>
     const MY_LIFF_ID = "2011544779-xcU8XKhd";
     
-    // GAS 部署後產生的 API 網址
+    // ⚠️ 請確認與 GAS 最新部署網址一致 (必須為 .../exec 結尾)
     const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbz83EWMrOYOP5knxpwV-V_eCOwsSAScT1tGplu7aau6e7kovs6AYPe9E6RqD3WCV1UT/exec";
 
     let currentUserProfile = null;
@@ -66,7 +68,7 @@
           }
         })
         .catch((err) => {
-          updateLog("LIFF 初始化失敗: " + (err.message || JSON.stringify(err)));
+          updateLog("LIFF 初始化失敗: " + (err.message || JSON.stringify(err)), false);
         });
     });
 
@@ -86,7 +88,7 @@
           updateLog("初始化完成，請選擇打卡項目。");
         })
         .catch((err) => {
-          updateLog("無法取得 User Profile: " + err.message);
+          updateLog("無法取得 User Profile: " + err.message, false);
         });
     }
 
@@ -135,17 +137,17 @@
               default:
                 errorMsg += "未知錯誤。";
             }
-            updateLog(errorMsg);
+            updateLog(errorMsg, false);
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
       } else {
         setLoading(false);
-        updateLog("您的裝置不支援 GPS 位置獲取功能。");
+        updateLog("您的裝置不支援 GPS 位置獲取功能。", false);
       }
     }
 
-    // 4. 發送資料至後端 API (相容 Safari / iOS 的 JSON 處理)
+    // 4. 發送資料至後端 API
     function sendClockDataToBackend(data) {
       updateLog("打卡資料傳送中...");
 
@@ -160,39 +162,47 @@
         try {
           result = JSON.parse(text);
         } catch(e) {
-          throw new Error("伺服器回應格式不符合 JSON: " + text);
+          throw new Error("伺服器回應格式異常");
         }
 
         setLoading(false);
-        if (result.success || result.status === "success") {
-          updateLog(result.message || "打卡成功！");
+
+        if (result.success) {
+          const actionText = data.type === 'CLOCK_IN' ? '上班' : '下班';
+          updateLog(`✅ ${actionText}打卡成功！(距離公司 ${result.distance} 公尺)`, true);
 
           if (liff.isInClient()) {
-            const actionText = data.type === 'CLOCK_IN' ? '上班' : '下班';
             liff.sendMessages([
               {
                 type: 'text',
                 text: `[打卡通知] ${data.displayName} 已於 ${new Date().toLocaleTimeString('zh-TW', {hour12: false})} 完成${actionText}打卡！`
               }
             ]).then(() => {
-              setTimeout(() => { liff.closeWindow(); }, 1200);
+              setTimeout(() => { liff.closeWindow(); }, 1500);
             }).catch(err => {
               console.error("發送訊息失敗", err);
-              liff.closeWindow();
+              setTimeout(() => { liff.closeWindow(); }, 1500);
             });
           }
         } else {
-          updateLog(result.message || "打卡失敗");
+          updateLog(`❌ ${result.message}`, false);
         }
       })
       .catch(err => {
         setLoading(false);
-        updateLog("連線至後端失敗: " + err.message);
+        updateLog("連線至後端失敗: " + err.message, false);
       });
     }
 
-    function updateLog(msg) {
-      document.getElementById("logMsg").innerText = msg;
+    function updateLog(msg, isSuccess = null) {
+      const logElement = document.getElementById("logMsg");
+      logElement.innerText = msg;
+      logElement.className = "";
+      if (isSuccess === true) {
+        logElement.classList.add("status-success");
+      } else if (isSuccess === false) {
+        logElement.classList.add("status-error");
+      }
     }
 
     function setLoading(isLoading) {
