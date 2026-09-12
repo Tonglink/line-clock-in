@@ -13,16 +13,13 @@
     .user-name { font-size: 1.1rem; font-weight: bold; color: #333; margin-bottom: 4px; }
     .status-text { font-size: 0.82rem; color: #666; margin-bottom: 16px; }
     
-    /* 頁籤 Tab 設定 */
     .nav-tabs { display: flex; border-bottom: 2px solid #eee; margin-bottom: 16px; }
     .nav-tab { flex: 1; padding: 10px 0; font-weight: bold; color: #777; cursor: pointer; text-align: center; font-size: 0.95rem; }
     .nav-tab.active { color: #06C755; border-bottom: 3px solid #06C755; }
 
-    /* 頁面分頁隱藏 */
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
-    /* 按鈕與表單 */
     .btn-group { display: flex; gap: 12px; margin-bottom: 16px; }
     .btn { flex: 1; padding: 14px 0; border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
     .btn-clock-in { background-color: #06C755; color: white; }
@@ -33,6 +30,7 @@
     .form-group { text-align: left; margin-bottom: 12px; }
     .form-group label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 4px; color: #555; }
     .form-control { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; }
+    .row-group { display: flex; gap: 8px; }
 
     .info-box { background: #f0f4f8; border-radius: 8px; padding: 12px; font-size: 0.88rem; color: #444; text-align: left; word-break: break-all; line-height: 1.6; }
     .loading { display: none; color: #06C755; font-weight: bold; margin-bottom: 12px; font-size: 0.95rem; }
@@ -48,7 +46,6 @@
     <div id="userName" class="user-name">載入使用者資訊中...</div>
     <div id="userId" class="status-text">LINE ID: --</div>
 
-    <!-- 功能頁籤選項 -->
     <div class="nav-tabs">
       <div id="tab1" class="nav-tab active" onclick="switchTab('clock')">打卡報到</div>
       <div id="tab2" class="nav-tab" onclick="switchTab('leave')">線上請假</div>
@@ -83,22 +80,33 @@
             <option value="喪假">喪假</option>
           </select>
         </div>
+
         <div class="form-group">
-          <label>開始日期</label>
-          <input type="date" id="startDate" class="form-control" required>
+          <label>開始時間</label>
+          <div class="row-group">
+            <input type="date" id="startDate" class="form-control" required>
+            <input type="time" id="startTime" class="form-control" value="08:00" required>
+          </div>
         </div>
+
         <div class="form-group">
-          <label>結束日期</label>
-          <input type="date" id="endDate" class="form-control" required>
+          <label>結束時間</label>
+          <div class="row-group">
+            <input type="date" id="endDate" class="form-control" required>
+            <input type="time" id="endTime" class="form-control" value="17:00" required>
+          </div>
         </div>
+
         <div class="form-group">
-          <label>請假天數</label>
-          <input type="number" step="0.5" id="leaveDays" class="form-control" placeholder="1" value="1" required>
+          <label>請假天數/時數 (天)</label>
+          <input type="number" step="0.1" id="leaveDays" class="form-control" placeholder="1" value="1" required>
         </div>
+
         <div class="form-group">
           <label>事由說明</label>
           <textarea id="leaveReason" class="form-control" rows="2" placeholder="請填寫簡短事由..." required></textarea>
         </div>
+
         <button type="submit" id="btnLeaveSubmit" class="btn btn-submit" disabled>送出請假單</button>
       </form>
       <br>
@@ -117,7 +125,6 @@
     let currentUserProfile = null;
 
     document.addEventListener("DOMContentLoaded", function() {
-      // 預設請假日期為今天
       const today = new Date().toISOString().split('T')[0];
       document.getElementById("startDate").value = today;
       document.getElementById("endDate").value = today;
@@ -154,7 +161,6 @@
         });
     }
 
-    // 頁籤切換
     function switchTab(tabName) {
       document.getElementById("tab1").classList.toggle("active", tabName === 'clock');
       document.getElementById("tab2").classList.toggle("active", tabName === 'leave');
@@ -162,7 +168,6 @@
       document.getElementById("leaveContent").classList.toggle("active", tabName === 'leave');
     }
 
-    // 打卡按鈕觸發
     function handleClock(type) {
       if (!currentUserProfile) return;
       setLoading(true);
@@ -196,7 +201,6 @@
       }
     }
 
-    // 請假單表單提交
     function handleLeaveSubmit(e) {
       e.preventDefault();
       if (!currentUserProfile) return;
@@ -208,7 +212,9 @@
         displayName: currentUserProfile.displayName,
         leaveType: document.getElementById("leaveType").value,
         startDate: document.getElementById("startDate").value,
+        startTime: document.getElementById("startTime").value,
         endDate: document.getElementById("endDate").value,
+        endTime: document.getElementById("endTime").value,
         days: document.getElementById("leaveDays").value,
         reason: document.getElementById("leaveReason").value
       };
@@ -216,7 +222,6 @@
       sendDataToBackend(leaveData, 'leave');
     }
 
-    // 發送資料至 GAS 後端
     function sendDataToBackend(data, sourceTab) {
       fetch(BACKEND_API_URL, {
         method: "POST",
