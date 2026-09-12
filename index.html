@@ -99,7 +99,7 @@
         </div>
 
         <div class="form-group">
-          <label>系統自動計算請假天數 (每天以 8 小時折算)</label>
+          <label>自動計算請假天數 (已扣除12:00~13:00休息1小時)</label>
           <input type="number" id="leaveDays" class="form-control" value="1" readonly>
         </div>
 
@@ -144,7 +144,7 @@
         });
     });
 
-    // 前端自動計算請假天數邏輯
+    // 前端精準請假天數計算 logic (自動扣除中午 12:00~13:00 休息 1 小時)
     function calculateLeaveDays() {
       const startDateVal = document.getElementById("startDate").value;
       const startTimeVal = document.getElementById("startTime").value || "08:00";
@@ -161,13 +161,46 @@
         return;
       }
 
-      // 計算總小時數 (每日以 8 小時折算為 1 天)
-      const diffMs = end - start;
-      const diffHours = diffMs / (1000 * 60 * 60);
-      let calculatedDays = Math.round((diffHours / 8) * 10) / 10;
+      if (startDateVal === endDateVal) {
+        let diffHours = (end - start) / (1000 * 60 * 60);
+        const startH = start.getHours() + start.getMinutes() / 60;
+        const endH = end.getHours() + end.getMinutes() / 60;
 
-      if (calculatedDays <= 0) calculatedDays = 0.5;
-      document.getElementById("leaveDays").value = calculatedDays;
+        // 跨越 12:00 ~ 13:00 自動扣 1 小時
+        if (startH <= 12 && endH >= 13) {
+          diffHours -= 1;
+        }
+
+        let calculatedDays = Math.round((diffHours / 8) * 10) / 10;
+        if (calculatedDays <= 0) calculatedDays = 0.5;
+        document.getElementById("leaveDays").value = calculatedDays;
+      } else {
+        // 跨日按每日實質工時累算
+        let totalHours = 0;
+        let curr = new Date(start);
+
+        while (curr < end) {
+          let dayEnd = new Date(curr);
+          dayEnd.setHours(17, 0, 0, 0);
+
+          if (dayEnd > end) dayEnd = new Date(end);
+
+          let h = (dayEnd - curr) / (1000 * 60 * 60);
+          const cH = curr.getHours() + curr.getMinutes() / 60;
+          const eH = dayEnd.getHours() + dayEnd.getMinutes() / 60;
+
+          if (cH <= 12 && eH >= 13) h -= 1;
+
+          if (h > 0) totalHours += h;
+
+          curr.setDate(curr.getDate() + 1);
+          curr.setHours(8, 0, 0, 0);
+        }
+
+        let calculatedDays = Math.round((totalHours / 8) * 10) / 10;
+        if (calculatedDays <= 0) calculatedDays = 0.5;
+        document.getElementById("leaveDays").value = calculatedDays;
+      }
     }
 
     function getUserProfile() {
